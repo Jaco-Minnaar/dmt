@@ -30,20 +30,15 @@ pub fn new_migration(opts: &NewMigrationArgs, config: &DmtConfig) -> Result<(), 
 }
 
 static DEFAULT_SQL: &str = r"
-BEGIN;
+
     -- Write your SQL code here 
-COMMIT;
 ";
 
 pub fn new_migration_impl(
     opts: &NewMigrationArgs,
     config: &DmtConfig,
 ) -> Result<(), NewMigrationError> {
-    let mut migrations_path = if let Some(path) = &config.migration_path {
-        path.clone()
-    } else {
-        PathBuf::from_str("./migrations").unwrap()
-    };
+    let mut migrations_path = config.migration_path.clone();
 
     let now = chrono::Utc::now();
     let new_migrations_folder_name = format!("{}_{}", now.format("%Y%m%d%H%M%S"), opts.name);

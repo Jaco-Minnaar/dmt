@@ -1,16 +1,15 @@
 mod cli;
 mod commands;
 mod config;
+mod database;
+mod io;
 
-use std::{
-    io::{self, ErrorKind},
-    path::PathBuf,
-};
+use std::io::{self as stdio, ErrorKind};
 
 use clap::Parser;
 pub use cli::Cli;
 use cli::DmtCommand;
-use commands::{new_migration, run_migrations};
+use commands::{new_migration, rollback_migrations, run_migrations};
 
 #[derive(Debug)]
 pub enum DmtError {
@@ -47,7 +46,7 @@ fn handle_command(cli: &Cli) {
     let result = match &cli.command {
         DmtCommand::New(opts) => new_migration(opts, &config),
         DmtCommand::Migrate => run_migrations(&config),
-        _ => todo!(),
+        DmtCommand::Rollback => rollback_migrations(&config),
     };
 
     if let Err(err) = result {
@@ -55,8 +54,8 @@ fn handle_command(cli: &Cli) {
     }
 }
 
-impl From<io::Error> for FileError {
-    fn from(err: io::Error) -> Self {
+impl From<stdio::Error> for FileError {
+    fn from(err: stdio::Error) -> Self {
         match err.kind() {
             ErrorKind::NotFound => Self::NotFound,
             ErrorKind::Other => Self::Uncategorized,

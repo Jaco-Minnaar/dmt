@@ -1,17 +1,25 @@
+use chrono::Utc;
 use postgres::{Client, NoTls};
 
-use crate::config::{Database, DmtConfig};
-
-use super::Migration;
+use crate::{
+    config::{Database, DmtConfig},
+    database::{
+        create_migration, create_migrations_table, execute_sql, get_migrations,
+        migration_table_exists,
+    },
+    io::MigrationDir,
+};
 
 enum RunMigrationsError {
     DatabaseError(String),
+    FileError(String),
 }
 
 pub fn run_migrations(config: &DmtConfig) -> Result<(), String> {
     match run_migrations_impl(config) {
         Ok(_) => Ok(()),
         Err(RunMigrationsError::DatabaseError(s)) => Err(s),
+        Err(RunMigrationsError::FileError(s)) => Err(s),
     }
 }
 
@@ -25,31 +33,56 @@ fn postgres_migrations(config: &DmtConfig) -> Result<(), RunMigrationsError> {
     let mut postgres_client = Client::connect(&config.connection_string, NoTls)
         .or_else(|err| Err(RunMigrationsError::DatabaseError(err.to_string())))?;
 
-    let sql = r"
-        CREATE TABLE IF NOT EXISTS migrations (
-            id SERIAL PRIMARY KEY NOT NULL,
-            name VARCHAR(255) UNIQUE NOT NULL,
-            time TIMESTAMP NOT NULL
-        );
-    ";
+    if !migration_table_exists(&mut postgres_client)
+        .or_else(|err| Err(RunMigrationsError::DatabaseError(err)))?
+    {
+        create_migrations_table(&mut postgres_client)
+            .or_else(|err| Err(RunMigrationsError::DatabaseError(err)))?;
+    }
 
-    postgres_client
-        .execute(sql, &[])
-        .or_else(|err| Err(RunMigrationsError::DatabaseError(err.to_string())))?;
+    let ran_migrations: Vec<String> = get_migrations(&mut postgres_client)
+        .or_else(|err| Err(RunMigrationsError::DatabaseError(err)))?
+        .iter()
+        .map(|migration| migration.name.clone())
+        .collect();
 
-    let sql = r"
-        SELECT * FROM migrations;
-    ";
+    let migration_root_dir = MigrationDir::new(&config.migration_path);
 
-    let rows = postgres_client
-        .query(sql, &[])
-        .or_else(|err| Err(RunMigrationsError::DatabaseError(err.to_string())))?;
+    let mut migration_dirs = migration_root_dir
+        .get_migration_dir_names()
+        .or_else(|err| Err(RunMigrationsError::FileError(err)))?;
 
-    let migrations = rows.iter().map(|row| Migration {
-        id: row.get(0),
-        name: row.get(1),
-        time: row.get(2),
-    });
+    let outstanding_migrations = migration_dirs
+        .iter_mut()
+        .filter(|dir_name| !ran_migrations.contains(&dir_name));
+
+    for migration in outstanding_migrations {
+        let path = format!("{}/up.sql", migration);
+        let up_sql = migration_root_dir
+            .get_file_contents(&path)
+            .or_else(|err| Err(RunMigrationsError::FileError(err)))?;
+
+        match execute_sql(&mut postgres_client, &up_sql) {
+            Ok(()) => migration_success(migration),
+            Err(err) => {
+                migration_failure(migration);
+                return Err(RunMigrationsError::DatabaseError(err.to_string()));
+            }
+        }
+
+        let now = Utc::now().naive_utc();
+
+        create_migration(&mut postgres_client, migration, now)
+            .or_else(|err| Err(RunMigrationsError::FileError(err.to_string())))?;
+    }
 
     Ok(())
+}
+
+fn migration_success(name: &str) {
+    println!("    SUCCESS: {}", name);
+}
+
+fn migration_failure(name: &str) {
+    println!("    FAILURE: {}", name);
 }

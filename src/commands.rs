@@ -1,12 +1,15 @@
 mod new_migration;
+mod rollback_migration;
 mod run_migrations;
 
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 pub use new_migration::new_migration;
+pub use rollback_migration::rollback_migrations;
 pub use run_migrations::run_migrations;
 
-struct Migration {
-    id: i32,
-    name: String,
-    time: DateTime<Utc>,
+#[derive(Debug)]
+pub struct Migration {
+    pub id: i32,
+    pub name: String,
+    pub time: NaiveDateTime,
 }
