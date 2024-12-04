@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use serde::Deserialize;
 
-use crate::{DmtError, FileError};
+use crate::{ConfigError, FileError};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -18,13 +18,26 @@ pub struct DmtConfig {
 pub enum Database {
     #[serde(alias = "postgres")]
     Postgres,
+    #[serde(alias = "turso")]
+    Turso,
 }
 
-pub fn get_config(path: PathBuf) -> Result<DmtConfig, DmtError> {
-    let contents =
-        fs::read_to_string(path.clone()).or(Err(DmtError::FileError(FileError::NotFound)))?;
+pub fn get_config(path: PathBuf) -> Result<DmtConfig, ConfigError> {
+    let ext = if let Some(ext) = path.extension() {
+        ext.to_string_lossy().into_owned()
+    } else {
+        return Err(ConfigError::UnrecognizedConfigFormat("".to_string()));
+    };
 
-    let config: DmtConfig = serde_yaml::from_str(contents.as_str()).unwrap();
+    let contents = fs::read_to_string(path).or(Err(ConfigError::FileError(FileError::NotFound)))?;
+
+    let config: DmtConfig = match ext.as_str() {
+        "yml" | "yaml" => {
+            serde_yaml::from_str(contents.as_str()).or(Err(ConfigError::ParseError))?
+        }
+        "toml" => toml::from_str(contents.as_str()).or(Err(ConfigError::ParseError))?,
+        ext => return Err(ConfigError::UnrecognizedConfigFormat(ext.to_string())),
+    };
 
     Ok(config)
 }
