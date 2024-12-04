@@ -34,10 +34,10 @@ impl MigrationDir {
         let mut file_path = self.path.clone();
         file_path.push(path);
 
-        fs::read_to_string(&file_path).or_else(|err| Err(err.to_string()))
+        fs::read_to_string(&file_path).map_err(|err| err.to_string())
     }
 
     fn dir_entries(&self) -> Result<ReadDir, String> {
-        fs::read_dir(&self.path).or_else(|err| Err(err.to_string()))
+        fs::read_dir(&self.path).map_err(|err| err.to_string())
     }
 }

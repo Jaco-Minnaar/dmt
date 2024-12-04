@@ -1,57 +1,41 @@
-use chrono::Utc;
-use postgres::{Client, NoTls};
+use std::path::Path;
 
-use crate::{
-    config::{Database, DmtConfig},
-    database::{execute_sql, get_migrations, migration_table_exists, remove_migration_by_name},
-    io::MigrationDir,
-};
+use crate::{database::MigrationDatabase, io::MigrationDir};
 
-enum RollbackMigrationsError {
+#[derive(Debug)]
+pub enum RollbackMigrationsError {
     DatabaseError(String),
     FileError(String),
 }
 
-pub fn rollback_migrations(config: &DmtConfig) -> Result<(), String> {
-    match rollback_migrations_impl(config) {
-        Ok(_) => Ok(()),
-        Err(RollbackMigrationsError::DatabaseError(s)) => Err(s),
-        Err(RollbackMigrationsError::FileError(s)) => Err(s),
-    }
-}
-
-fn rollback_migrations_impl(config: &DmtConfig) -> Result<(), RollbackMigrationsError> {
-    match config.database {
-        Database::Postgres => postgres_rollback(config),
-    }
-}
-
-fn postgres_rollback(config: &DmtConfig) -> Result<(), RollbackMigrationsError> {
-    let mut postgres_client = Client::connect(&config.connection_string, NoTls)
-        .or_else(|err| Err(RollbackMigrationsError::DatabaseError(err.to_string())))?;
-
-    if !migration_table_exists(&mut postgres_client)
-        .or_else(|err| Err(RollbackMigrationsError::DatabaseError(err)))?
+pub fn rollback_migrations(
+    db: &mut impl MigrationDatabase,
+    path: &Path,
+) -> Result<(), RollbackMigrationsError> {
+    if !db
+        .migration_table_exists()
+        .map_err(RollbackMigrationsError::DatabaseError)?
     {
         println!("   No migrations have yet been run. Thus, none can be rolled back. ");
         return Ok(());
     }
 
-    let ran_migrations_db: Vec<String> = get_migrations(&mut postgres_client)
-        .or_else(|err| Err(RollbackMigrationsError::DatabaseError(err)))?
+    let ran_migrations_db: Vec<String> = db
+        .get_migrations()
+        .map_err(RollbackMigrationsError::DatabaseError)?
         .iter()
         .map(|migration| migration.name.clone())
         .collect();
 
-    let migration_root_dir = MigrationDir::new(&config.migration_path);
+    let migration_root_dir = MigrationDir::new(path);
 
     let mut migration_dirs = migration_root_dir
         .get_migration_dir_names()
-        .or_else(|err| Err(RollbackMigrationsError::FileError(err)))?;
+        .map_err(RollbackMigrationsError::DatabaseError)?;
 
     let ran_migration_names = migration_dirs
         .iter_mut()
-        .filter(|dir_name| ran_migrations_db.contains(&dir_name));
+        .filter(|dir_name| ran_migrations_db.contains(dir_name));
 
     let mut ran = false;
     for migration in ran_migration_names {
@@ -59,9 +43,9 @@ fn postgres_rollback(config: &DmtConfig) -> Result<(), RollbackMigrationsError> 
         let path = format!("{}/down.sql", migration);
         let down_sql = migration_root_dir
             .get_file_contents(&path)
-            .or_else(|err| Err(RollbackMigrationsError::FileError(err)))?;
+            .map_err(RollbackMigrationsError::DatabaseError)?;
 
-        match execute_sql(&mut postgres_client, &down_sql) {
+        match db.execute_sql(&down_sql) {
             Ok(()) => rollback_success(migration),
             Err(err) => {
                 rollback_failure(migration);
@@ -69,8 +53,8 @@ fn postgres_rollback(config: &DmtConfig) -> Result<(), RollbackMigrationsError> 
             }
         }
 
-        remove_migration_by_name(&mut postgres_client, migration)
-            .or_else(|err| Err(RollbackMigrationsError::FileError(err.to_string())))?;
+        db.remove_migration_by_name(migration)
+            .map_err(RollbackMigrationsError::DatabaseError)?;
     }
 
     if !ran {
