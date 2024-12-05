@@ -2,7 +2,7 @@ use std::path::Path;
 
 use chrono::Utc;
 
-use crate::{database::MigrationDatabase, io::MigrationDir};
+use crate::{database::DatabaseConnection, io::MigrationDir};
 
 #[derive(Debug)]
 pub enum RunMigrationsError {
@@ -11,8 +11,8 @@ pub enum RunMigrationsError {
 }
 
 pub fn run_migrations(
-    db: &mut impl MigrationDatabase,
-    path: &Path,
+    db: &mut impl DatabaseConnection,
+    path: &impl AsRef<Path>,
 ) -> Result<(), RunMigrationsError> {
     if !db
         .migration_table_exists()

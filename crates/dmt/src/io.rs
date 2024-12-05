@@ -8,8 +8,13 @@ pub struct MigrationDir {
 }
 
 impl MigrationDir {
-    pub fn new(path: &Path) -> Self {
-        Self { path: path.into() }
+    pub fn new<P>(path: &P) -> Self
+    where
+        P: AsRef<Path> + ?Sized,
+    {
+        Self {
+            path: path.as_ref().into(),
+        }
     }
 
     pub fn get_migration_dir_names(&self) -> Result<Vec<String>, String> {

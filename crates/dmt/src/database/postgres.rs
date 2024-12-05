@@ -2,8 +2,9 @@ use chrono::NaiveDateTime;
 use postgres::{Client, NoTls, Row};
 
 use crate::commands::Migration;
+use crate::config::PostgresConfig;
 
-use super::MigrationDatabase;
+use super::DatabaseConnection;
 
 impl From<Row> for Migration {
     fn from(row: Row) -> Self {
@@ -25,13 +26,13 @@ impl From<&Row> for Migration {
     }
 }
 
-pub struct PostgresMigrationDatabase {
+pub struct PostgresConnection {
     connection: Client,
 }
 
-impl PostgresMigrationDatabase {
-    pub fn new(connection_str: &str) -> Result<Self, ()> {
-        let postgres_client = Client::connect(connection_str, NoTls).or(Err(()))?;
+impl PostgresConnection {
+    pub fn new(config: &PostgresConfig) -> Result<Self, ()> {
+        let postgres_client = Client::connect(&config.connection_string, NoTls).or(Err(()))?;
 
         Ok(Self {
             connection: postgres_client,
@@ -39,7 +40,7 @@ impl PostgresMigrationDatabase {
     }
 }
 
-impl MigrationDatabase for PostgresMigrationDatabase {
+impl DatabaseConnection for PostgresConnection {
     fn create_migrations_table(&mut self) -> Result<(), String> {
         let sql = r#"
         CREATE TABLE IF NOT EXISTS migration (

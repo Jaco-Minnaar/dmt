@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{database::MigrationDatabase, io::MigrationDir};
+use crate::{database::DatabaseConnection, io::MigrationDir};
 
 #[derive(Debug)]
 pub enum RollbackMigrationsError {
@@ -9,8 +9,8 @@ pub enum RollbackMigrationsError {
 }
 
 pub fn rollback_migrations(
-    db: &mut impl MigrationDatabase,
-    path: &Path,
+    db: &mut impl DatabaseConnection,
+    path: &impl AsRef<Path>,
 ) -> Result<(), RollbackMigrationsError> {
     if !db
         .migration_table_exists()
