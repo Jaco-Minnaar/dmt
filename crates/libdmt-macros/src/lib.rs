@@ -85,10 +85,13 @@ token = "TEST_TOKEN"
         let output = migrate_inner();
         let expected = quote! {
             {
+                use ::libdmt::{DmtConfig as __DmtConfig, MigrationDatabase as __MigrationDb, run_migrations as __run_dmt};
+                use ::std::{str::FromStr as __FromStr, convert::TryFrom as __TryFrom};
+
                 let __dmt_config_contents = #config;
-                let __dmt_config = <::libdmt::DmtConfig as ::std::str::FromStr>::from_str(__dmt_config_contents);
-                let mut __dmt_db = <::libdmt::MigrationDatabase as ::std::convert::TryFrom<::libdmt::DmtConfig>>::try_from(__dmt_config).unwrap();
-                ::libdmt::run_migrations(__dmt_db, &__dmt_config.migration.migration_path).unwrap();
+                let __dmt_config = <__DmtConfig as __FromStr>::from_str(__dmt_config_contents).unwrap();
+                let mut __dmt_db = <__MigrationDb as __TryFrom<&__DmtConfig>>::try_from(&__dmt_config).unwrap();
+                __run_dmt(&mut __dmt_db, &__dmt_config.migration.migration_path).unwrap();
             }
         };
 
