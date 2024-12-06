@@ -3,24 +3,20 @@ use std::path::Path;
 
 use crate::{ConfigError, FileError};
 
-use super::{DmtConfig, FromFile, Parse, Parser};
+use super::{DmtConfig, Parse, TomlConfig};
 
-pub struct TomlConfig {
-    pub contents: String,
-}
+impl Parse for DmtConfig {
+    type Source = TomlConfig;
 
-impl FromFile for TomlConfig {
-    fn from_path(path: impl AsRef<Path>) -> Result<TomlConfig, ConfigError> {
+    fn from_file(path: impl AsRef<Path>) -> Result<DmtConfig, ConfigError> {
         let contents =
             fs::read_to_string(path).or(Err(ConfigError::FileError(FileError::NotFound)))?;
 
-        Ok(Self { contents })
+        Self::from_str(&contents)
     }
-}
 
-impl Parse<TomlConfig> for Parser {
-    fn parse(&self, config: TomlConfig) -> Result<DmtConfig, ConfigError> {
-        toml::from_str(&config.contents).or(Err(ConfigError::ParseError))
+    fn from_str(input: &str) -> Result<DmtConfig, ConfigError> {
+        toml::from_str(&input).or(Err(ConfigError::ParseError))
     }
 }
 
@@ -30,7 +26,7 @@ mod test {
 
     use crate::config::{
         default_migration_path, ConnectionConfig, Database, DmtConfig, EnvConfig, MigrationConfig,
-        Parse, Parser, TomlConfig, TursoConfig,
+        Parse, TomlConfig, TursoConfig,
     };
 
     #[test]
@@ -69,11 +65,7 @@ mod test {
             }),
         };
 
-        let actual = Parser
-            .parse(TomlConfig {
-                contents: input.to_string(),
-            })
-            .unwrap();
+        let actual = <DmtConfig as Parse<TomlConfig>>::from_str(input).unwrap();
         assert_eq!(actual, expected);
     }
 }

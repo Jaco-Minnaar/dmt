@@ -483,20 +483,8 @@ dependencies = [
 name = "dmt"
 version = "0.1.0"
 dependencies = [
- "chrono",
- "libsql",
- "postgres",
- "serde",
- "serde_yaml",
- "toml",
-]
-
-[[package]]
-name = "dmt-cli"
-version = "0.1.0"
-dependencies = [
  "clap",
- "dmt",
+ "libdmt",
 ]
 
 [[package]]
@@ -936,6 +924,27 @@ name = "libc"
 version = "0.2.167"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09d6582e104315a817dff97f75133544b2e094ee22447d2acf4a74e189ba06fc"
+
+[[package]]
+name = "libdmt"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "libsql",
+ "postgres",
+ "serde",
+ "serde_yaml",
+ "toml",
+]
+
+[[package]]
+name = "libdmt-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "libloading"
@@ -1897,9 +1906,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.12"
+version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
+checksum = "d7fcaa8d55a2bdd6b83ace262b016eca0d79ee02818c5c1bcdf0305114081078"
 dependencies = [
  "bytes",
  "futures-core",

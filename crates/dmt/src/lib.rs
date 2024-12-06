@@ -1,47 +1,65 @@
-mod commands;
-mod config;
-mod database;
-mod io;
+use self::cli::{Cli, DmtCommand};
+use clap::Parser;
+use libdmt::{
+    Database, DatabaseConnection, DmtConfig, DmtError, FromDatabaseConfig, MigrationDatabase,
+};
 
-use std::io::{self as stdio, ErrorKind};
+mod cli;
 
-pub use config::{Database, DmtConfig, MigrationConfig};
+pub fn run_dmt() -> bool {
+    let cli = Cli::parse();
+    let config = if let Ok(config) = DmtConfig::from_path(cli.config.clone()) {
+        config
+    } else {
+        eprintln!(
+            "Could not open config file: {}",
+            cli.config.to_string_lossy()
+        );
+        return false;
+    };
 
-pub use database::{DatabaseConnection, FromDatabaseConfig, MigrationDatabase};
-
-pub use commands::{new_migration, rollback_migrations, run_migrations};
-use commands::{NewMigrationError, RollbackMigrationsError, RunMigrationsError};
-
-#[derive(Debug)]
-pub enum DmtError {
-    ConfigError(ConfigError),
-    RunMigrationError(RunMigrationsError),
-    RollbackMigrationsError(RollbackMigrationsError),
-    NewMigrationError(NewMigrationError),
-}
-
-#[derive(Debug)]
-pub enum FileError {
-    NotFound,
-    FileAccessDenied,
-    DirAccessDenied,
-    UnrecognizedConfigFormat,
-    Uncategorized,
-}
-
-#[derive(Debug)]
-pub enum ConfigError {
-    FileError(FileError),
-    UnrecognizedConfigFormat(String),
-    ParseError,
-}
-
-impl From<stdio::Error> for FileError {
-    fn from(err: stdio::Error) -> Self {
-        match err.kind() {
-            ErrorKind::NotFound => Self::NotFound,
-            ErrorKind::Other => Self::Uncategorized,
-            _ => Self::Uncategorized,
+    let Ok(mut db) = (match config.connection.database {
+        Some(Database::Postgres) => {
+            if let Some(config) = &config.connection.postgres {
+                MigrationDatabase::from_database_config(config)
+            } else {
+                eprintln!("No postgres config found");
+                return false;
+            }
         }
+        Some(Database::Turso) => {
+            if let Some(config) = &config.connection.turso {
+                MigrationDatabase::from_database_config(config)
+            } else {
+                eprintln!("No postgres config found");
+                return false;
+            }
+        }
+        None => {
+            eprintln!("Database type not specified in config");
+            return false;
+        }
+    }) else {
+        eprintln!("Could not establish connection to database.",);
+        return false;
+    };
+
+    handle_command(&cli.command, &mut db, &config).unwrap();
+
+    true
+}
+
+fn handle_command(
+    command: &DmtCommand,
+    db: &mut impl DatabaseConnection,
+    config: &DmtConfig,
+) -> Result<(), DmtError> {
+    match command {
+        DmtCommand::New(opts) => libdmt::new_migration(&opts.name, &config.migration)
+            .map_err(DmtError::NewMigrationError),
+        DmtCommand::Migrate => libdmt::run_migrations(db, &config.migration.migration_path)
+            .map_err(DmtError::RunMigrationError),
+        DmtCommand::Rollback => libdmt::rollback_migrations(db, &config.migration.migration_path)
+            .map_err(DmtError::RollbackMigrationsError),
     }
 }

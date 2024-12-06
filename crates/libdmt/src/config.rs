@@ -4,17 +4,38 @@ mod yaml;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::marker::PhantomData;
 use std::path::Path;
 
 use serde::Deserialize;
 
 use crate::{ConfigError, FileError};
 
-use self::toml::TomlConfig;
-use self::yaml::YamlConfig;
-
 pub trait DatabaseConfig {
     fn db_type(&self) -> Database;
+}
+
+enum ConfigType {
+    Toml,
+    Yaml,
+}
+
+impl TryFrom<&Path> for ConfigType {
+    type Error = ConfigError;
+
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        let ext = if let Some(ext) = path.extension() {
+            ext.to_str().unwrap()
+        } else {
+            return Err(ConfigError::UnrecognizedConfigFormat("".to_string()));
+        };
+
+        match ext {
+            "yml" | "yaml" => Ok(Self::Yaml),
+            "toml" => Ok(Self::Toml),
+            ext => Err(ConfigError::UnrecognizedConfigFormat(ext.to_string())),
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Default, PartialEq)]
@@ -78,14 +99,39 @@ pub struct DmtConfig {
     pub env: Option<EnvConfig>,
 }
 
+struct DmtConfigBuilder<T> {
+    data: PhantomData<T>,
+}
+
+impl<T: ConfigStr> DmtConfigBuilder<T> {
+    fn from_str(config_str: T) -> Self {
+        Self { data: PhantomData }
+    }
+}
+
 impl DmtConfig {
     pub fn from_path(path: impl AsRef<Path>) -> Result<DmtConfig, ConfigError> {
-        let config_file = ConfigFile::from_path(path)?;
-        let mut config = Parser.parse(config_file)?;
+        let path = path.as_ref();
+
+        let mut config = match ConfigType::try_from(path)? {
+            ConfigType::Toml => DmtConfig,
+            ConfigType::Yaml => DmtConfig,
+        };
 
         config.resolve_env()?;
         Ok(config)
     }
+
+    pub fn from_yaml_str(yaml: &str) -> Result<DmtConfig, ConfigError> {
+        <DmtConfig as Parse<YamlConfig>>::from_str(yaml)
+    }
+
+    //pub fn from_str<T>(input: &str) -> Result<DmtConfig, ConfigError>
+    //where
+    //    T: ConfigFile,
+    //{
+    //    <DmtConfig as Parse<T>>::from_str(input)
+    //}
 
     fn resolve_env(&mut self) -> Result<(), ConfigError> {
         let Some(env) = &mut self.env else {
@@ -131,47 +177,21 @@ impl DmtConfig {
     }
 }
 
-trait FromFile {
-    fn from_path(path: impl AsRef<Path>) -> Result<Self, ConfigError>
-    where
-        Self: Sized;
+trait ConfigStr {
+    fn as_str(&self) -> &str;
 }
 
-enum ConfigFile {
-    Yaml(YamlConfig),
-    Toml(TomlConfig),
-}
+trait ConfigFile {}
 
-trait Parse<T> {
-    fn parse(&self, config: T) -> Result<DmtConfig, ConfigError>;
-}
+struct YamlConfig;
+struct TomlConfig;
 
-impl FromFile for ConfigFile {
-    fn from_path(path: impl AsRef<Path>) -> Result<ConfigFile, ConfigError> {
-        let path = path.as_ref();
-        let ext = if let Some(ext) = path.extension() {
-            ext.to_str().unwrap()
-        } else {
-            return Err(ConfigError::UnrecognizedConfigFormat("".to_string()));
-        };
+impl ConfigFile for YamlConfig {}
+impl ConfigFile for TomlConfig {}
 
-        match ext {
-            "yml" | "yaml" => Ok(Self::Yaml(YamlConfig::from_path(path)?)),
-            "toml" => Ok(Self::Toml(TomlConfig::from_path(path)?)),
-            ext => Err(ConfigError::UnrecognizedConfigFormat(ext.to_string())),
-        }
-    }
-}
-
-struct Parser;
-
-impl Parse<ConfigFile> for Parser {
-    fn parse(&self, config: ConfigFile) -> Result<DmtConfig, ConfigError> {
-        match config {
-            ConfigFile::Yaml(yaml_config) => Parser.parse(yaml_config),
-            ConfigFile::Toml(toml_config) => Parser.parse(toml_config),
-        }
-    }
+trait Parse<T: ConfigFile> {
+    fn from_file(path: impl AsRef<Path>) -> Result<DmtConfig, ConfigError>;
+    fn from_str(input: &str) -> Result<DmtConfig, ConfigError>;
 }
 
 fn default_migration_path() -> String {
