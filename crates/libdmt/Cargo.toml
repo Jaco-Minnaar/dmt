@@ -1,7 +1,9 @@
 [package]
 name = "libdmt"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+authors.workspace = true
+license-file.workspace = true
 
 [dependencies]
 chrono = "0.4"
