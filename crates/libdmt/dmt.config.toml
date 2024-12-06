@@ -1,0 +1,9 @@
+[migration]
+migrationPath = "./migrationsssss"
+
+[connection]
+database = "turso"
+
+[connection.turso]
+url = "TEST_URL"
+token = "TEST_TOKEN"

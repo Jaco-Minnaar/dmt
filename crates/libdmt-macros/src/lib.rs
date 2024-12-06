@@ -63,4 +63,35 @@ fn get_file_contents(path: impl AsRef<Path>) -> Result<String, io::Error> {
     Ok(config_contents)
 }
 
+#[cfg(test)]
+mod test {
+    use quote::quote;
+
+    use crate::migrate_inner;
+
+    #[test]
+    fn migrate_inner_correct() {
+        let config = r#"[migration]
+migrationPath = "./migrationsssss"
+
+[connection]
+database = "turso"
+
+[connection.turso]
+url = "TEST_URL"
+token = "TEST_TOKEN"
+"#;
+
+        let output = migrate_inner();
+        let expected = quote! {
+            {
+                let __dmt_config_contents = #config;
+                let __dmt_config = <::libdmt::DmtConfig as ::std::str::FromStr>::from_str(__dmt_config_contents);
+                let mut __dmt_db = <::libdmt::MigrationDatabase as ::std::convert::TryFrom<::libdmt::DmtConfig>>::try_from(__dmt_config).unwrap();
+                ::libdmt::run_migrations(__dmt_db, &__dmt_config.migration.migration_path).unwrap();
+            }
+        };
+
+        assert_eq!(output.to_string(), expected.to_string());
+    }
 }
