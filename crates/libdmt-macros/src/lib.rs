@@ -45,19 +45,10 @@ fn migrate_inner(input: TokenStream2) -> syn::Result<TokenStream2> {
         });
     };
 
-    let mut file_names = dir.filter_map(|e| e.ok()).map(|e| e.path()).filter(|path| {
-        path.file_name()
-            .expect("Could not get file name")
-            .to_str()
-            .expect("Could not get file name")
-            .starts_with("dmt.config")
-    });
-
-    let Some(file_name) = file_names.next() else {
-        return Ok(quote! {
-            compile_error!("No DMT config file could be found.");
-        });
-    };
-
-    todo!()
+    Ok(quote! {
+        let __dmt_config_contents = include_str!("dmt.config.toml");
+        let __dmt_config = <::libdmt::DmtConfig as ::std::str::FromStr>::from_str(__dmt_config_contents);
+        let mut __dmt_db = <::libdmt::MigrationDatabase as ::std::convert::TryFrom<::libdmt::DmtConfig>>::try_from(__dmt_config).unwrap();
+        ::libdmt::run_migrations(__dmt_db, &__dmt_config.migration.migration_path).unwrap();
+    })
 }

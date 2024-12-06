@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
@@ -14,7 +12,7 @@ pub struct Cli {
 
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE", default_value = "./dmt.config.yml")]
-    pub config: PathBuf,
+    pub config: String,
 }
 
 #[derive(Subcommand)]

@@ -10,4 +10,5 @@ postgres = { version = "0.19", features = [ "with-chrono-0_4" ] }
 serde = { version = "1.0", features=["derive"] }
 serde_yaml = "0.9.13"
 toml = "0.8"
+libdmt-macros = {path = "../libdmt-macros/"}
 

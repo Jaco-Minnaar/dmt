@@ -1,7 +1,5 @@
-use std::process;
+use libdmt::DmtError;
 
-fn main() {
-    if !dmt::run_dmt() {
-        process::exit(1);
-    }
+fn main() -> Result<(), DmtError> {
+    dmt::run_dmt()
 }

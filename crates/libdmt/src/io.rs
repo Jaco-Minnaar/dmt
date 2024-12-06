@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::MigrationError;
+
 pub struct MigrationDir {
     path: PathBuf,
 }
@@ -17,7 +19,7 @@ impl MigrationDir {
         }
     }
 
-    pub fn get_migration_dir_names(&self) -> Result<Vec<String>, String> {
+    pub fn get_migration_dir_names(&self) -> Result<Vec<String>, MigrationError> {
         let dir = self.dir_entries()?;
 
         Ok(dir
@@ -35,14 +37,14 @@ impl MigrationDir {
             .collect())
     }
 
-    pub fn get_file_contents(&self, path: &str) -> Result<String, String> {
+    pub fn get_file_contents(&self, path: &str) -> Result<String, MigrationError> {
         let mut file_path = self.path.clone();
         file_path.push(path);
 
-        fs::read_to_string(&file_path).map_err(|err| err.to_string())
+        Ok(fs::read_to_string(&file_path)?)
     }
 
-    fn dir_entries(&self) -> Result<ReadDir, String> {
-        fs::read_dir(&self.path).map_err(|err| err.to_string())
+    fn dir_entries(&self) -> Result<ReadDir, MigrationError> {
+        Ok(fs::read_dir(&self.path)?)
     }
 }
